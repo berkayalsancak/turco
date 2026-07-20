@@ -23,7 +23,7 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen w-64 flex-col border-r bg-[var(--ig-surface)] px-3 py-6 md:flex lg:w-72">
       <div className="mb-8 px-3">
-        <h1 className="text-2xl font-bold tracking-tight ig-gradient-text">SosyalAğı</h1>
+        <h1 className="text-2xl font-bold tracking-tight ig-gradient-text">TURCO</h1>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
