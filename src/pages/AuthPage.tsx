@@ -28,7 +28,7 @@ export function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--ig-bg)] px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="ig-card mb-4 p-8">
-          <h1 className="mb-6 text-center text-4xl font-bold ig-gradient-text">SosyalAğı</h1>
+          <h1 className="mb-6 text-center text-4xl font-bold ig-gradient-text">TURCO</h1>
           <p className="mb-6 text-center text-sm text-[var(--ig-muted)]">
             {mode === 'signin' ? 'Hesabına giriş yap' : 'Yeni hesap oluştur'}
           </p>
