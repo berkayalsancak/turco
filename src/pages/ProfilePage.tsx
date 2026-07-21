@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRouter } from '../context/RouterContext';
 import { Avatar } from '../components/Avatar';
 import { PostCard } from '../components/PostCard';
+import { FollowListModal } from '../components/FollowListModal';
 import type { Post, Profile } from '../types';
 import { Settings, Grid, Film, Bookmark, UserPlus, UserMinus, Ban, MessageCircle, Phone, Loader2, Camera, Check } from 'lucide-react';
 import { formatCount } from '../lib/utils';
@@ -25,6 +26,7 @@ export function ProfilePage({ userId }: ProfilePageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ username: '', full_name: '', bio: '', website: '', avatar_url: '' });
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
 
   const isOwner = me?.id === userId;
 
@@ -61,7 +63,7 @@ export function ProfilePage({ userId }: ProfilePageProps) {
     if (isFollowing) {
       await supabase.from('follows').delete().eq('follower_id', me.id).eq('following_id', userId);
       setIsFollowing(false);
-      setProfile((p) => p ? { ...p, followers_count: p.followers_count - 1 } : p);
+      setProfile((p) => p ? { ...p, followers_count: Math.max(p.followers_count - 1, 0) } : p);
     } else {
       await supabase.from('follows').insert({ follower_id: me.id, following_id: userId });
       await supabase.from('notifications').insert({
@@ -156,8 +158,12 @@ export function ProfilePage({ userId }: ProfilePageProps) {
 
           <div className="mt-4 flex gap-6">
             <p><span className="font-semibold">{formatCount(profile.posts_count)}</span> gönderi</p>
-            <p><span className="font-semibold">{formatCount(profile.followers_count)}</span> takipçi</p>
-            <p><span className="font-semibold">{formatCount(profile.following_count)}</span> takip</p>
+            <button onClick={() => setFollowModal('followers')} className="hover:opacity-70">
+              <span className="font-semibold">{formatCount(profile.followers_count)}</span> takipçi
+            </button>
+            <button onClick={() => setFollowModal('following')} className="hover:opacity-70">
+              <span className="font-semibold">{formatCount(profile.following_count)}</span> takip
+            </button>
           </div>
 
           {profile.full_name && <p className="mt-3 font-semibold text-sm">{profile.full_name}</p>}
@@ -247,6 +253,10 @@ export function ProfilePage({ userId }: ProfilePageProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {followModal && (
+        <FollowListModal userId={userId} mode={followModal} onClose={() => setFollowModal(null)} />
       )}
     </div>
   );
