@@ -69,6 +69,16 @@ export function MessagesPage() {
       .single();
     if (data) setMessages((m) => [...m, data as Message]);
     setText('');
+
+    const recipientId = activeConv.other_user?.id;
+    if (recipientId && recipientId !== profile.id) {
+      await supabase.from('notifications').insert({
+        user_id: recipientId,
+        actor_id: profile.id,
+        type: 'message',
+        text: 'sana mesaj gönderdi',
+      });
+    }
   };
 
   const startConversation = async (otherId: string) => {
