@@ -61,14 +61,17 @@ export function ProfilePage({ userId }: ProfilePageProps) {
   const toggleFollow = async () => {
     if (!me || !profile) return;
     if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', me.id).eq('following_id', userId);
+      const { error } = await supabase.from('follows').delete().eq('follower_id', me.id).eq('following_id', userId);
+      if (error) { console.error('Takipten çıkılamadı:', error); return; }
       setIsFollowing(false);
       setProfile((p) => p ? { ...p, followers_count: Math.max(p.followers_count - 1, 0) } : p);
     } else {
-      await supabase.from('follows').insert({ follower_id: me.id, following_id: userId });
-      await supabase.from('notifications').insert({
+      const { error: followErr } = await supabase.from('follows').insert({ follower_id: me.id, following_id: userId });
+      if (followErr) { console.error('Takip edilemedi:', followErr); return; }
+      const { error: notifErr } = await supabase.from('notifications').insert({
         user_id: userId, actor_id: me.id, type: 'follow', text: 'seni takip etmeye başladı',
       });
+      if (notifErr) console.error('Takip bildirimi oluşturulamadı:', notifErr);
       setIsFollowing(true);
       setProfile((p) => p ? { ...p, followers_count: p.followers_count + 1 } : p);
     }
