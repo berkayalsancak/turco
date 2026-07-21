@@ -17,6 +17,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
   const { navigate } = useRouter();
   const [liked, setLiked] = useState(post.liked_by_me ?? false);
   const [likeCount, setLikeCount] = useState(post.likes_count);
+  const [commentCount, setCommentCount] = useState(post.comments_count);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -66,6 +67,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
       .single();
     if (data) {
       setComments((c) => [...c, data as unknown as Comment]);
+      setCommentCount((c) => c + 1);
       setCommentText('');
       if (post.user_id !== profile.id) {
         await supabase.from('notifications').insert({
@@ -163,9 +165,9 @@ export function PostCard({ post, onDelete }: PostCardProps) {
             <span className="font-semibold">{post.profile?.username}</span> {post.caption}
           </p>
         )}
-        {post.comments_count > 0 && !showComments && (
+        {commentCount > 0 && !showComments && (
           <button onClick={() => { setShowComments(true); loadComments(); }} className="mt-1 text-sm text-[var(--ig-muted)]">
-            {post.comments_count} yorumun tümünü gör
+            {commentCount} yorumun tümünü gör
           </button>
         )}
         <p className="mt-1 text-xs text-[var(--ig-muted)]">{timeAgo(post.created_at)}</p>
