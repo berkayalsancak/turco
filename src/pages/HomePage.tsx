@@ -57,13 +57,15 @@ export function HomePage() {
 
   const followSuggestion = async (id: string) => {
     if (!profile) return;
-    await supabase.from('follows').insert({ follower_id: profile.id, following_id: id });
-    await supabase.from('notifications').insert({
+    const { error: followErr } = await supabase.from('follows').insert({ follower_id: profile.id, following_id: id });
+    if (followErr) { console.error('Takip edilemedi:', followErr); return; }
+    const { error: notifErr } = await supabase.from('notifications').insert({
       user_id: id,
       actor_id: profile.id,
       type: 'follow',
       text: 'seni takip etmeye başladı',
     });
+    if (notifErr) console.error('Takip bildirimi oluşturulamadı:', notifErr);
     setSuggestions((prev) => prev.filter((x) => x.id !== id));
   };
 
