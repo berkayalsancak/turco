@@ -58,6 +58,12 @@ export function HomePage() {
   const followSuggestion = async (id: string) => {
     if (!profile) return;
     await supabase.from('follows').insert({ follower_id: profile.id, following_id: id });
+    await supabase.from('notifications').insert({
+      user_id: id,
+      actor_id: profile.id,
+      type: 'follow',
+      text: 'seni takip etmeye başladı',
+    });
     setSuggestions((prev) => prev.filter((x) => x.id !== id));
   };
 
