@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useRouter } from '../context/RouterContext';
 import { StoryBar } from '../components/StoryBar';
 import { PostCard } from '../components/PostCard';
+import { Avatar } from '../components/Avatar';
 import type { Post, Story } from '../types';
 import { Loader2 } from 'lucide-react';
 
 export function HomePage() {
   const { profile } = useAuth();
+  const { navigate } = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,12 @@ export function HomePage() {
     load();
   }, [profile?.id]);
 
+  const followSuggestion = async (id: string) => {
+    if (!profile) return;
+    await supabase.from('follows').insert({ follower_id: profile.id, following_id: id });
+    setSuggestions((prev) => prev.filter((x) => x.id !== id));
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20"><Loader2 className="animate-spin text-[var(--ig-muted)]" /></div>
@@ -78,38 +87,42 @@ export function HomePage() {
 
       <aside className="hidden w-80 shrink-0 lg:block">
         <div className="sticky top-8 pt-8">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 p-[2px]">
-              <div className="h-full w-full rounded-full bg-[var(--ig-surface)]" />
-            </div>
+          <button
+            onClick={() => profile && navigate({ name: 'profile', userId: profile.id })}
+            className="flex w-full items-center gap-3 text-left"
+          >
+            <Avatar profile={profile || { avatar_url: null, username: '', full_name: '' }} size={48} ring />
             <div>
               <p className="text-sm font-semibold">{profile?.username}</p>
               <p className="text-sm text-[var(--ig-muted)]">{profile?.full_name}</p>
             </div>
-          </div>
+          </button>
 
           <p className="mt-6 text-sm font-semibold text-[var(--ig-muted)]">Senin için öneriler</p>
           <div className="mt-2 space-y-2">
             {suggestions.map((s) => (
               <div key={s.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-sky-500 to-cyan-500" />
+                <button
+                  onClick={() => navigate({ name: 'profile', userId: s.id })}
+                  className="flex flex-1 items-center gap-2 text-left"
+                >
+                  <Avatar profile={s} size={32} />
                   <div>
                     <p className="text-sm font-semibold">{s.username}</p>
                     <p className="text-xs text-[var(--ig-muted)]">Öneriliyor</p>
                   </div>
-                </div>
+                </button>
                 <button
-                  onClick={async () => {
-                    await supabase.from('follows').insert({ follower_id: profile?.id, following_id: s.id });
-                    setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
-                  }}
+                  onClick={() => followSuggestion(s.id)}
                   className="text-xs font-semibold text-[var(--ig-accent)]"
                 >
                   Takip Et
                 </button>
               </div>
             ))}
+            {suggestions.length === 0 && (
+              <p className="text-xs text-[var(--ig-muted)]">Şu an için öneri yok</p>
+            )}
           </div>
         </div>
       </aside>
