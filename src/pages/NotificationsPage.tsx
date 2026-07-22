@@ -20,6 +20,8 @@ const TYPE_TO_PREF: Record<string, string> = {
   message: 'messages',
 };
 
+const NOTIFICATION_SELECT = '*, actor:profiles!actor_id(*), post:posts(id, media_urls), reel:reels(id, video_url)';
+
 function loadNotifPrefs() {
   try {
     const raw = localStorage.getItem(NOTIF_PREF_KEY);
@@ -47,11 +49,12 @@ export function NotificationsPage() {
 
     supabase
       .from('notifications')
-      .select('*, actor:profiles!actor_id(*), post:posts(id, media_urls), reel:reels(id, video_url)')
+      .select(NOTIFICATION_SELECT)
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error('Bildirimler yüklenemedi:', error);
         setNotifications((data as unknown as NotificationRow[]) || []);
         setLoading(false);
       });
@@ -64,11 +67,12 @@ export function NotificationsPage() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
         async (payload) => {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('notifications')
-            .select('*, actor:profiles!actor_id(*), post:posts(id, media_urls), reel:reels(id, video_url)')
+            .select(NOTIFICATION_SELECT)
             .eq('id', (payload.new as { id: string }).id)
             .maybeSingle();
+          if (error) { console.error('Yeni bildirim çekilemedi:', error); return; }
           if (data) setNotifications((n) => [data as unknown as NotificationRow, ...n]);
         }
       )
@@ -79,16 +83,23 @@ export function NotificationsPage() {
 
   const markAllRead = async () => {
     if (!profile) return;
-    await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false);
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false);
+    if (error) { console.error('Okundu işaretlenemedi:', error); return; }
     setNotifications((n) => n.map((x) => ({ ...x, read: true })));
   };
 
   const markRead = async (id: string) => {
-    await supabase.from('notifications').update({ read: true }).eq('id', id);
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+    if (error) { console.error('Okundu işaretlenemedi:', error); return; }
     setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
   };
 
-  const handleClick = (n: NotificationRow) => {
+  const goToActor = (n: NotificationRow) => {
+    if (!n.read) markRead(n.id);
+    if (n.actor_id) navigate({ name: 'profile', userId: n.actor_id });
+  };
+
+  const goToContent = (n: NotificationRow) => {
     if (!n.read) markRead(n.id);
     if (n.post_id) {
       navigate({ name: 'post', postId: n.post_id });
@@ -131,32 +142,43 @@ export function NotificationsPage() {
             const thumb = n.post?.media_urls?.[0] || n.reel?.video_url;
             const isVideo = !!thumb && /\.(mp4|webm|mov)(\?|$)/i.test(thumb);
             return (
-              <button
+              <div
                 key={n.id}
-                onClick={() => handleClick(n)}
-                className={`flex w-full items-center gap-3 rounded-lg p-3 text-left transition hover:bg-gray-100 dark:hover:bg-zinc-900 ${!n.read ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                className={`flex w-full items-center gap-3 rounded-lg p-3 transition hover:bg-gray-100 dark:hover:bg-zinc-900 ${!n.read ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
               >
-                <div className="relative">
+                {/* Avatar / isim -> her zaman bildirimi gönderen kişinin profiline gider */}
+                <button onClick={() => goToActor(n)} className="relative shrink-0">
                   <Avatar profile={n.actor || { avatar_url: null, username: '', full_name: '' }} size={44} />
                   <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ig-surface)] ring-2 ring-[var(--ig-surface)]">
                     {iconFor(n.type)}
                   </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm">
-                    <span className="font-semibold">{n.actor?.username}</span> {n.text}
-                  </p>
-                  <p className="text-xs text-[var(--ig-muted)]">{timeAgo(n.created_at)}</p>
-                </div>
-                {thumb && (
-                  isVideo ? (
-                    <video src={thumb} className="h-11 w-11 shrink-0 rounded object-cover" />
-                  ) : (
-                    <img src={thumb} alt="" className="h-11 w-11 shrink-0 rounded object-cover" />
-                  )
-                )}
+                </button>
+
+                {/* Metin ve önizleme -> ilgili gönderiye/reels'e gider (varsa) */}
+                <button onClick={() => goToContent(n)} className="flex flex-1 items-center gap-3 text-left">
+                  <div className="flex-1">
+                    <p className="text-sm">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); goToActor(n); }}
+                        className="font-semibold hover:underline"
+                      >
+                        {n.actor?.username}
+                      </button>{' '}
+                      {n.text}
+                    </p>
+                    <p className="text-xs text-[var(--ig-muted)]">{timeAgo(n.created_at)}</p>
+                  </div>
+                  {thumb && (
+                    isVideo ? (
+                      <video src={thumb} className="h-11 w-11 shrink-0 rounded object-cover" />
+                    ) : (
+                      <img src={thumb} alt="" className="h-11 w-11 shrink-0 rounded object-cover" />
+                    )
+                  )}
+                </button>
+
                 {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--ig-accent)]" />}
-              </button>
+              </div>
             );
           })}
         </div>
