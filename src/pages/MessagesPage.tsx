@@ -173,11 +173,16 @@ export function MessagesPage() {
           <>
             <div className="flex items-center gap-3 border-b p-3">
               <button onClick={() => setActiveConv(null)} className="md:hidden"><ArrowLeft size={22} /></button>
-              <Avatar profile={activeConv.other_user || { avatar_url: null, username: '', full_name: '' }} size={36} ring />
-              <div className="flex-1">
-                <p className="text-sm font-semibold">{activeConv.other_user?.username}</p>
-                <p className="text-xs text-[var(--ig-muted)]">Çevrimiçi</p>
-              </div>
+              <button
+                onClick={() => activeConv.other_user?.id && navigate({ name: 'profile', userId: activeConv.other_user.id })}
+                className="flex flex-1 items-center gap-3 text-left"
+              >
+                <Avatar profile={activeConv.other_user || { avatar_url: null, username: '', full_name: '' }} size={36} ring />
+                <div>
+                  <p className="text-sm font-semibold">{activeConv.other_user?.username}</p>
+                  <p className="text-xs text-[var(--ig-muted)]">Çevrimiçi</p>
+                </div>
+              </button>
               <button onClick={() => startCall(activeConv)} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-zinc-900">
                 <Phone size={20} />
               </button>
