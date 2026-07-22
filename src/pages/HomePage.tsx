@@ -18,7 +18,7 @@ export function HomePage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: postsData }, { data: storiesData }, { data: suggestionsData }] = await Promise.all([
+      const [{ data: postsData }, { data: storiesData }, { data: suggestionsData }, { data: followingRows }] = await Promise.all([
         supabase
           .from('posts')
           .select('*, profile:profiles(*)')
@@ -33,23 +33,33 @@ export function HomePage() {
           .from('profiles')
           .select('id, username, full_name, avatar_url')
           .neq('id', profile?.id || '')
-          .limit(5),
+          .limit(20),
+        profile
+          ? supabase.from('follows').select('following_id').eq('follower_id', profile.id)
+          : Promise.resolve({ data: [] as { following_id: string }[] }),
       ]);
+
+      const followingIds = new Set((followingRows || []).map((f: any) => f.following_id));
 
       const postsWithLikes = postsData
         ? await Promise.all((postsData as unknown as Post[]).map(async (p) => {
-            const { data: like } = await supabase
-              .from('likes')
-              .select('id')
-              .eq('post_id', p.id)
-              .eq('user_id', profile?.id || '')
-              .maybeSingle();
-            return { ...p, liked_by_me: !!like };
+            const [{ data: like }, { data: save }] = await Promise.all([
+              supabase
+                .from('likes')
+                .select('id')
+                .eq('post_id', p.id)
+                .eq('user_id', profile?.id || '')
+                .maybeSingle(),
+              profile
+                ? supabase.from('saves').select('id').eq('post_id', p.id).eq('user_id', profile.id).maybeSingle()
+                : Promise.resolve({ data: null }),
+            ]);
+            return { ...p, liked_by_me: !!like, saved_by_me: !!save };
           }))
         : [];
       setPosts(postsWithLikes);
       setStories((storiesData as unknown as Story[]) || []);
-      setSuggestions(suggestionsData || []);
+      setSuggestions((suggestionsData || []).filter((s) => !followingIds.has(s.id)).slice(0, 5));
       setLoading(false);
     }
     load();
