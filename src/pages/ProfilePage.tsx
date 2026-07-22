@@ -27,6 +27,8 @@ export function ProfilePage({ userId }: ProfilePageProps) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ username: '', full_name: '', bio: '', website: '', avatar_url: '' });
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [savedLoaded, setSavedLoaded] = useState(false);
 
   const isOwner = me?.id === userId;
 
@@ -57,6 +59,20 @@ export function ProfilePage({ userId }: ProfilePageProps) {
     }
     load();
   }, [userId, me?.id]);
+
+  const openTab = async (key: 'posts' | 'reels' | 'saved') => {
+    setTab(key);
+    if (key === 'saved' && !savedLoaded && me) {
+      const { data, error } = await supabase
+        .from('saves')
+        .select('post:posts(*, profile:profiles(*))')
+        .eq('user_id', me.id)
+        .order('created_at', { ascending: false });
+      if (error) { console.error('Kaydedilenler yüklenemedi:', error); return; }
+      setSavedPosts(((data || []).map((row: any) => row.post).filter(Boolean)) as Post[]);
+      setSavedLoaded(true);
+    }
+  };
 
   const toggleFollow = async () => {
     if (!me || !profile) return;
@@ -185,7 +201,7 @@ export function ProfilePage({ userId }: ProfilePageProps) {
           return (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => openTab(t.key)}
               className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-semibold uppercase tracking-wide ${
                 tab === t.key ? 'border-t-2 border-[var(--ig-text)] text-[var(--ig-text)]' : 'text-[var(--ig-muted)]'
               }`}
@@ -228,7 +244,23 @@ export function ProfilePage({ userId }: ProfilePageProps) {
             </div>
           )
         )}
-        {tab === 'saved' && <p className="py-12 text-center text-sm text-[var(--ig-muted)]">Kaydedilen gönderiler burada görünür</p>}
+        {tab === 'saved' && (
+          savedPosts.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--ig-muted)]">Kaydedilen gönderiler burada görünür</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1">
+              {savedPosts.map((p) => (
+                <button key={p.id} onClick={() => navigate({ name: 'post', postId: p.id })} className="aspect-square overflow-hidden rounded">
+                  {p.media_urls[0]?.match(/\.(mp4|webm|mov)(\?|$)/i) ? (
+                    <video src={p.media_urls[0]} className="h-full w-full object-cover" />
+                  ) : (
+                    <img src={p.media_urls[0]} alt="" className="h-full w-full object-cover transition hover:scale-105" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )
+        )}
       </div>
 
       {editing && (
