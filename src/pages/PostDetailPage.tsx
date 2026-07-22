@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from '../context/RouterContext';
 import { Avatar } from '../components/Avatar';
+import { LikesListModal } from '../components/LikesListModal';
 import type { Post, Comment } from '../types';
 import { ArrowLeft, Heart, MessageCircle, Send, Bookmark } from 'lucide-react';
 import { timeAgo, formatCount } from '../lib/utils';
@@ -15,6 +16,8 @@ export function PostDetailPage({ postId }: { postId: string }) {
 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [showLikes, setShowLikes] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
 
@@ -33,13 +36,11 @@ export function PostDetailPage({ postId }: { postId: string }) {
       setLikeCount(p?.likes_count ?? 0);
 
       if (p && profile) {
-        const { data: like } = await supabase
-          .from('likes')
-          .select('id')
-          .eq('post_id', p.id)
-          .eq('user_id', profile.id)
-          .maybeSingle();
-        if (!cancelled) setLiked(!!like);
+        const [{ data: like }, { data: save }] = await Promise.all([
+          supabase.from('likes').select('id').eq('post_id', p.id).eq('user_id', profile.id).maybeSingle(),
+          supabase.from('saves').select('id').eq('post_id', p.id).eq('user_id', profile.id).maybeSingle(),
+        ]);
+        if (!cancelled) { setLiked(!!like); setSaved(!!save); }
       }
 
       const { data: commentsData } = await supabase
@@ -55,6 +56,19 @@ export function PostDetailPage({ postId }: { postId: string }) {
     load();
     return () => { cancelled = true; };
   }, [postId, profile?.id]);
+
+  const toggleSave = async () => {
+    if (!profile || !post) return;
+    const next = !saved;
+    setSaved(next);
+    if (next) {
+      const { error } = await supabase.from('saves').insert({ user_id: profile.id, post_id: post.id });
+      if (error) { console.error('Kaydedilemedi:', error); setSaved(false); }
+    } else {
+      const { error } = await supabase.from('saves').delete().eq('user_id', profile.id).eq('post_id', post.id);
+      if (error) { console.error('Kayıt kaldırılamadı:', error); setSaved(true); }
+    }
+  };
 
   const toggleLike = async () => {
     if (!profile || !post) return;
@@ -174,9 +188,13 @@ export function PostDetailPage({ postId }: { postId: string }) {
                 </button>
                 <button><Send size={24} /></button>
               </div>
-              <button><Bookmark size={24} /></button>
+              <button onClick={toggleSave}>
+                <Bookmark size={24} fill={saved ? 'currentColor' : 'none'} />
+              </button>
             </div>
-            <p className="mt-2 text-sm font-semibold">{formatCount(likeCount)} beğeni</p>
+            <button onClick={() => setShowLikes(true)} className="mt-2 text-sm font-semibold hover:underline">
+              {formatCount(likeCount)} beğeni
+            </button>
             <p className="text-xs text-[var(--ig-muted)]">{timeAgo(post.created_at)}</p>
 
             <div className="mt-3 flex items-center gap-2">
@@ -194,6 +212,8 @@ export function PostDetailPage({ postId }: { postId: string }) {
           </div>
         </div>
       </div>
+
+      {showLikes && <LikesListModal postId={post.id} onClose={() => setShowLikes(false)} />}
     </div>
   );
 }
