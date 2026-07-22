@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from '../context/RouterContext';
 import { Avatar } from './Avatar';
+import { LikesListModal } from './LikesListModal';
 import { timeAgo, formatCount } from '../lib/utils';
 import type { Post, Comment, Profile } from '../types';
 
@@ -18,6 +19,8 @@ export function PostCard({ post, onDelete }: PostCardProps) {
   const [liked, setLiked] = useState(post.liked_by_me ?? false);
   const [likeCount, setLikeCount] = useState(post.likes_count);
   const [commentCount, setCommentCount] = useState(post.comments_count);
+  const [saved, setSaved] = useState(post.saved_by_me ?? false);
+  const [showLikes, setShowLikes] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -27,24 +30,40 @@ export function PostCard({ post, onDelete }: PostCardProps) {
 
   const isOwner = profile?.id === post.user_id;
 
+  const toggleSave = async () => {
+    if (!profile) return;
+    const next = !saved;
+    setSaved(next);
+    if (next) {
+      const { error } = await supabase.from('saves').insert({ user_id: profile.id, post_id: post.id });
+      if (error) { console.error('Kaydedilemedi:', error); setSaved(false); }
+    } else {
+      const { error } = await supabase.from('saves').delete().eq('user_id', profile.id).eq('post_id', post.id);
+      if (error) { console.error('Kayıt kaldırılamadı:', error); setSaved(true); }
+    }
+  };
+
   const toggleLike = async () => {
     if (!profile) return;
     const newLiked = !liked;
     setLiked(newLiked);
     setLikeCount((c) => c + (newLiked ? 1 : -1));
     if (newLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+      const { error } = await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+      if (error) { console.error('Beğeni eklenemedi:', error); return; }
       if (post.user_id !== profile.id) {
-        await supabase.from('notifications').insert({
+        const { error: notifErr } = await supabase.from('notifications').insert({
           user_id: post.user_id,
           actor_id: profile.id,
           type: 'like',
           post_id: post.id,
           text: 'gönderini beğendi',
         });
+        if (notifErr) console.error('Beğeni bildirimi oluşturulamadı:', notifErr);
       }
     } else {
-      await supabase.from('likes').delete().eq('user_id', profile.id).eq('post_id', post.id);
+      const { error } = await supabase.from('likes').delete().eq('user_id', profile.id).eq('post_id', post.id);
+      if (error) console.error('Beğeni kaldırılamadı:', error);
     }
   };
 
@@ -155,11 +174,15 @@ export function PostCard({ post, onDelete }: PostCardProps) {
           </button>
           <button><Send size={24} /></button>
         </div>
-        <button><Bookmark size={24} /></button>
+        <button onClick={toggleSave}>
+          <Bookmark size={24} className={saved ? 'text-[var(--ig-text)]' : 'text-[var(--ig-text)]'} fill={saved ? 'currentColor' : 'none'} />
+        </button>
       </div>
 
       <div className="px-3 pb-3">
-        <p className="text-sm font-semibold">{formatCount(likeCount)} beğeni</p>
+        <button onClick={() => setShowLikes(true)} className="text-sm font-semibold hover:underline">
+          {formatCount(likeCount)} beğeni
+        </button>
         {post.caption && (
           <p className="mt-1 text-sm">
             <span className="font-semibold">{post.profile?.username}</span> {post.caption}
@@ -195,6 +218,8 @@ export function PostCard({ post, onDelete }: PostCardProps) {
           </div>
         </div>
       )}
+
+      {showLikes && <LikesListModal postId={post.id} onClose={() => setShowLikes(false)} />}
     </article>
   );
 }
